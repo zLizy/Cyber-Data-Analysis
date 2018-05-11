@@ -5,7 +5,7 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-from sklearn import neighbors
+from sklearn import neighbors,metrics
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
@@ -14,6 +14,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_curve, auc
+from sklearn.neural_network import MLPClassifier
 
 from operator import itemgetter
 from itertools import groupby
@@ -244,6 +245,9 @@ for item in data:#split data into x,y
     x.append(item[0:-2])
     y.append(item[-2])
 
+data_consider = data_all.iloc[:,list(range(11))]
+one_hot_data = pd.get_dummies(data_consider, columns=['accountcode','currencycode','issuercountry','txvariantcode','shoppercountry','issuercountry','interaction'])
+
 X = x[:]
 '''map number to each categorial feature'''
 for item in list(issuercountry_set):
@@ -272,6 +276,22 @@ for item in x:
     item[6] = interaction_dict[item[6]]
     item[7] = verification_dict[item[7]]
     item[10] = accountcode_dict[item[10]]
+
+def MaxMinNormalization(x,Max,Min):
+    x = (x - Min) / (Max - Min);
+    return x;
+
+np_data = np.asarray(one_hot_data)
+max_value = np_data.max(axis=0)
+min_value = np_data.min(axis=0)
+for item in np_data:
+    item[2] = verification_dict[item[2]]
+    item[0] = MaxMinNormalization(item[0],max_value[0],min_value[0])
+    item[1] = MaxMinNormalization(item[1],max_value[1],min_value[1])
+    item[4] = MaxMinNormalization(item[4],max_value[4],min_value[4])
+    # item[5] = MaxMinNormalization(item[5],max_value[5],min_value[5])
+    # item[6] = MaxMinNormalization(item[6],max_value[6],min_value[6])
+    # item[7] = MaxMinNormalization(item[7],max_value[7],min_value[7])
 
 #x_mean = []
 #x_mean = aggregate_mean(x);
@@ -302,7 +322,7 @@ TP, FP, FN, TN = 0, 0, 0, 0
 x_array = np.array(x)
 y_array = np.array(y)
 
-x_train, x_test, y_train, y_test = train_test_split(x_array, y_array, test_size = 0.2)#test_size: proportion of train/test data
+x_train, x_test, y_train, y_test = train_test_split(x_array, y_array, test_size = 0.4)#test_size: proportion of train/test data
 
 # choose the same number of fraud case from training set
 fraud_train_y = y_train[y_train==1]
@@ -359,19 +379,7 @@ X_train_ds4 = np.vstack((fraud_train_x,nonfraud4_train_x))
 Y_train_ds4 = np.append(fraud_train_y,nonfraud4_train_y)
 
 
-
-
-
-'''SVM'''
-def svm_train(x_train,y_train,x_test,y_test):
-    clf = svm.SVC()
-    clf.fit(x_train, y_train)
-    # clf = neighbors.KNeighborsClassifier(algorithm = 'kd_tree')
-    # clf.fit(x_train, y_train)
-    y_predict = clf.predict(x_test)
-    print("svm accuracy: ")
-    print accuracy_score(y_test, y_predict)
-
+def plot_roc(predict_proba,y_test,y_predict,idx):
     TP, FP, FN, TN = 0, 0, 0, 0
     for i in xrange(len(y_predict)):
         if y_test[i] == 1 and y_predict[i] == 1:
@@ -391,7 +399,38 @@ def svm_train(x_train,y_train,x_test,y_test):
     print('precision: ' + str(precision))
     print('recall: ' + str(recall))
 
-    #predict_proba = clf.predict_proba(x_test)  # the probability of each smple labelled to positive or negative
+    # y_test = y_test.reshape((47340,1))
+    auc = metrics.roc_auc_score(y_test, predict_proba)
+    fpr, tpr, _ = metrics.roc_curve(y_test, predict_proba)
+    #plt.figure()
+    plt.title('Receiver Operating Characteristic')
+    plt.plot(fpr, tpr, label="data" + idx + ", auc=" + str(auc))
+    plt.legend(loc='lower right')
+    plt.plot([0, 1], [0, 1], 'r--')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.ylabel('True Positive Rate')
+    plt.xlabel('False Positive Rate')
+    plt.show()
+    plt.savefig("/Users/lizy/my_doc/Q4/cyber_data_analysis/Cyber-Data-Analysis/plot/DS-"+idx+".png")
+
+
+'''SVM'''
+def svm_train(x_train,y_train,x_test,y_test):
+    clf = svm.SVC()
+    clf.fit(x_train, y_train)
+    # clf = neighbors.KNeighborsClassifier(algorithm = 'kd_tree')
+    # clf.fit(x_train, y_train)
+    y_predict = clf.predict(x_test)
+    print("svm accuracy: ")
+    print accuracy_score(y_test, y_predict)
+    idx = 'none'
+    #predict_proba = clf.predict_proba(x_test,probability=True)  # the probability of each smple labelled to positive or negative
+    #plot_roc(predict_proba,y_test,y_predict,idx)
+    precision, recall, thresholds = precision_recall_curve(y_test, y_predict)
+    print('precision: ' + str(precision))
+    print('recall: ' + str(recall))
+
     print('\n')
 
 '''ds1 result'''
@@ -401,48 +440,50 @@ svm_train(X_train_ds3,Y_train_ds3,x_test,y_test)
 svm_train(X_train_ds4,Y_train_ds4,x_test,y_test)
 
 '''Random Forest'''
-def rf_train(x_train,y_train,x_test,y_test):
+def rf_train(x_train,y_train,x_test,y_test,idx):
     clf_r = RandomForestClassifier(max_depth=2, random_state=0)
     clf_r.fit(x_train, y_train)
     y_predict = clf_r.predict(x_test)
     print("random forest accuracy: ")
     print accuracy_score(y_test, y_predict)
-
-    TP, FP, FN, TN = 0, 0, 0, 0
-    for i in xrange(len(y_predict)):
-        if y_test[i] == 1 and y_predict[i] == 1:
-            TP += 1
-        if y_test[i] == 0 and y_predict[i] == 1:
-            FP += 1
-        if y_test[i] == 1 and y_predict[i] == 0:
-            FN += 1
-        if y_test[i] == 0 and y_predict[i] == 0:
-            TN += 1
-    print 'TP: ' + str(TP)
-    print 'FP: ' + str(FP)
-    print 'FN: ' + str(FN)
-    print 'TN: ' + str(TN)
-    print confusion_matrix(y_test, y_predict) #watch out the element in confusion matrix
-    precision, recall, thresholds = precision_recall_curve(y_test, y_predict)
-    print('precision: '+str(precision))
-    print('recall: ' + str(recall))
-
-    #predict_proba = clf_r.predict_proba(x_test)  # the probability of each smple labelled to positive or negative
-
-    fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
-    roc_auc[i] = auc(fpr[i], tpr[i])
+    predict_proba = clf_r.predict_proba(x_test)[:, 1]  # the probability of each smple labelled to positive or negative
+    plot_roc(predict_proba,y_test,y_predict,idx)
     print('\n')
 
 '''ds1 result'''
 print("DS1:")
-rf_train(X_train_ds1,Y_train_ds1,x_test,y_test)
+rf_train(X_train_ds1,Y_train_ds1,x_test,y_test,'1')
 print("DS2:")
-rf_train(X_train_ds2,Y_train_ds2,x_test,y_test)
+rf_train(X_train_ds2,Y_train_ds2,x_test,y_test,'2')
 print("DS3:")
-rf_train(X_train_ds3,Y_train_ds3,x_test,y_test)
+rf_train(X_train_ds3,Y_train_ds3,x_test,y_test,'3')
 print("DS4:")
-rf_train(X_train_ds4,Y_train_ds4,x_test,y_test)
+rf_train(X_train_ds4,Y_train_ds4,x_test,y_test,'4')
 
+
+'''Neural Network '''
+def nn_train(x_train,y_train,x_test,y_test,idx):
+    x_train = x_train.astype('float64')
+    y_train = y_train.astype('float64')
+    clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5,5,5), random_state=1)
+    clf.fit(x_train, y_train)
+    x_test = x_test.astype('float64')
+    y_test = y_test.astype('float64')
+    y_predict = clf.predict(x_test)
+    print("random forest accuracy: ")
+    print accuracy_score(y_test, y_predict)
+    predict_proba = clf.predict_proba(x_test)[:, 1]  # the probability of each smple labelled to positive or negative
+    plot_roc(predict_proba, y_test, y_predict, idx)
+    print('\n')
+
+print("DS1:")
+nn_train(X_train_ds1,Y_train_ds1,x_test,y_test,'1(NN)')
+print("DS2:")
+nn_train(X_train_ds2,Y_train_ds2,x_test,y_test,'2(NN)')
+print("DS3:")
+nn_train(X_train_ds3,Y_train_ds3,x_test,y_test,'3(NN)')
+print("DS4:")
+nn_train(X_train_ds4,Y_train_ds4,x_test,y_test,'4(NN)')
 
 
 #data_all = pd.read_csv('/Users/lizy/my_doc/Q4/cyber_data_analysis/CS4035 Cyber Data Analytics (201718 Q4) - 4282018 - 441 PM/data_for_student_case.csv')
@@ -452,7 +493,7 @@ rf_train(X_train_ds4,Y_train_ds4,x_test,y_test)
 
 
 '''=========== RESAMPLE SMOTE =============='''
-def sm_sample(x_train,y_train,x_test,y_test):
+def sm_sample(x_train,y_train,x_test,y_test,idx):
     sm = SMOTE()
     # x_array = np.array(x)
     # y_array = np.array(y)
@@ -464,28 +505,34 @@ def sm_sample(x_train,y_train,x_test,y_test):
     print('Resampled dataset shape {}'.format(Counter(y_res)))
 
     print("Random Forest: ")
-    rf_train(X_res,y_res,x_test,y_test)
-
+    rf_train(X_res,y_res,x_test,y_test,idx)
+    #nn_train(X_res,y_res,x_test,y_test,idx)
     # print("SVM:")
     # svm_train(X_res, y_res, x_test, y_test)
+plt.figure()
+sm_sample(X_train_ds1,Y_train_ds1,x_test,y_test,'SM-1')
+sm_sample(X_train_ds2,Y_train_ds2,x_test,y_test,'SM-2')
+sm_sample(X_train_ds3,Y_train_ds3,x_test,y_test,'SM-3')
+sm_sample(X_train_ds4,Y_train_ds4,x_test,y_test,'SM-4')
 
-sm_sample(X_train_ds1,Y_train_ds1,x_test,y_test)
-sm_sample(X_train_ds2,Y_train_ds2,x_test,y_test)
-sm_sample(X_train_ds3,Y_train_ds3,x_test,y_test)
-sm_sample(X_train_ds4,Y_train_ds4,x_test,y_test)
+plt.figure()
+rf_train(X_train_ds1,Y_train_ds1,x_test,y_test,'1(ORI)')
+sm_sample(X_train_ds1,Y_train_ds1,x_test,y_test,'1(SMOTE)')
 
+plt.figure()
+rf_train(X_train_ds2,Y_train_ds2,x_test,y_test,'2(ORI)')
+sm_sample(X_train_ds2,Y_train_ds2,x_test,y_test,'2(SMOTE)')
+
+plt.figure()
+rf_train(X_train_ds3,Y_train_ds3,x_test,y_test,'3(ORI)')
+sm_sample(X_train_ds3,Y_train_ds3,x_test,y_test,'3(SMOTE)')
+
+plt.figure()
+rf_train(X_train_ds3,Y_train_ds3,x_test,y_test,'3(ORI)')
+sm_sample(X_train_ds3,Y_train_ds3,x_test,y_test,'3(SMOTE)')
+
+plt.figure()
+nn_train(X_train_ds1,Y_train_ds1,x_test,y_test,'1(nn-ORI)')
+sm_sample(X_train_ds1,Y_train_ds1,x_test,y_test,'1(nn-SMOTE)')
 
 # clf = neighbors.KNeighborsClassifier(algorithm = 'kd_tree')
-
-
-'''ROC curve'''
-fpr = dict()
-tpr = dict()
-roc_auc = dict()
-for i in range(n_classes):
-    fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
-    roc_auc[i] = auc(fpr[i], tpr[i])
-
-
-
-
