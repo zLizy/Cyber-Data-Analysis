@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/ava/Dropbox/CyberData/ass1/rbm/model/rbm_model.ckpt"
+all_model_checkpoint_paths: "/home/ava/Dropbox/CyberData/ass1/rbm/model/rbm_model.ckpt"
