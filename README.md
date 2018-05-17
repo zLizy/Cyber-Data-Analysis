@@ -2,7 +2,8 @@
 
 There are two branches regarding to different tasks. 
 
-#Branch zy 
+# Branch zy 
 contains the heatmap visualization and SMOTE analysis, which are in preprossesing_plot.py. 
-#In Branch ava,
+
+# In Branch ava,
 blackbox and whitebox algorithm are implemented.
