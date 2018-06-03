@@ -2,8 +2,6 @@
 
 There are two branches regarding to different tasks. 
 
-# Branch zy 
-contains the heatmap visualization and SMOTE analysis, which are in preprossesing_plot.py. 
+# Anomaly detection
 
-# In Branch ava,
-barcharts are plotted. In addition, blackbox and whitebox algorithm are implemented.
+For task Discrete model and PCA please go to MarkovChain_PCA.ipynb
